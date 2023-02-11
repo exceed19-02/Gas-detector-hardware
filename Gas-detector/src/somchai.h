@@ -5,12 +5,13 @@
 #include <Servo.h>
 
 
-#define Buzzer_PIN 2
-#define Gas_PIN 25
-#define LED_PIN 4
-#define servoPin 5
-#define servoOpen 0
-#define servoClose 90
+#define LED_PIN 21
+#define Gas_PIN 34
+#define Buzzer_PIN 5
+#define servoPin 18
+//open > close
+#define servoOpen 90
+#define servoClose 35
 #define wifi_name "OPPO_KUY"
 #define wifi_pass "oppopass"
 
@@ -20,56 +21,34 @@ enum FN_STATE{//essential for multitask
     RUNNING,
     END
 };
+//DANGER forget to open window
+
+#define G_WARNING 1500
+#define G_DANGER 2000
+#define G_SAFE 800
 
 
-
-
-#define G_WARN 1700
-#define G_DANGER 3000
-#define G_SAFE 1000
+//#define G_WARNING 1700
+//#define G_DANGER 3000
+//#define G_SAFE 1000
 
 int Gv = 0;
 FN_STATE Gas_value_state=END;
+TaskHandle_t Gas_value_h = NULL;
 void Gas_value(void* param){
     Gas_value_state=RUNNING;
-    Gv = analogRead(Gas_PIN);
+    while(1){
+        Gv = analogRead(Gas_PIN);
+        Serial.print("Obtained Gas value");
+        Serial.println(Gv);
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
     Gas_value_state=END;
 }
 
 void Gas_setup(){
     pinMode(Gas_PIN, INPUT);
-}
-
-
-
-
-void Buzzer_setup(){
-    pinMode(Buzzer_PIN, OUTPUT);
-    digitalWrite(Buzzer_PIN, LOW);
-}
-void TurnOffBuzzer(){
-    digitalWrite(Buzzer_PIN, LOW);
-}
-float T_Buzzer=0;
-void Set_Buzzer_freq(int freq){
-    if(freq==0){
-        digitalWrite(Buzzer_PIN, LOW);
-    }else{
-        T_Buzzer=(1/freq)*1000;//in ms
-    }   
-}
-FN_STATE FlashBuzzer_state=END;
-void FlashBuzzer(void * param){
-    FlashBuzzer_state=RUNNING;
-    float T=T_Buzzer;
-    float T_half=T/2;
-    float t=(float)millis();
-    if(fmod(t,T)<T_half){
-        digitalWrite(Buzzer_PIN, HIGH);
-    }else{
-        digitalWrite(Buzzer_PIN, LOW);
-    }
-    FlashBuzzer_state=END;
+    xTaskCreatePinnedToCore(Gas_value, "Gas_value", 1024*10, NULL, 1, &Gas_value_h, 0);
 }
 
 
@@ -78,45 +57,96 @@ void FlashBuzzer(void * param){
 
 
 
-
-void LED_setup(){
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
-}
-void TurnOffLED(){
-    digitalWrite(LED_PIN, LOW);
-}
-float T_LED=0;
-void Set_LED_freq(int freq){
+float T_LED=0.0f;
+void Set_LED_freq(float freq){
     if(freq==0){
         digitalWrite(LED_PIN, LOW);
+        T_LED=0.0f;
     }else{
-        T_LED=(1/freq)*1000;//in ms
+        T_LED=(1.0f/freq);//in s
     }   
+}
+void TurnOff_LED(){
+    Set_LED_freq(0);
 }
 FN_STATE FlashLED_state=END;
-void FlashLED(void* param){
+TaskHandle_t FlashLED_h = NULL;
+void FlashLED(void * param){
     FlashLED_state=RUNNING;
-    float T=T_LED;
-    float T_half=T/2;
-    float t=(float)millis();
-    if(fmod(t,T)<T_half){
-        digitalWrite(LED_PIN, HIGH);
-    }else{
-        digitalWrite(LED_PIN, LOW);
+    while(1){
+        if(T_LED!=0.0f){
+            float T=T_LED;
+            float T_half=T/2;
+            float t=(float)millis()/1000.0f;//in s
+            if(fmod(t,T)<T_half){
+                digitalWrite(LED_PIN, HIGH);
+            }else{
+                digitalWrite(LED_PIN, LOW);
+            }
+        }
+        vTaskDelay(10/portTICK_PERIOD_MS);
     }
     FlashLED_state=END;
 }
+void LED_setup(){
+    pinMode(LED_PIN, OUTPUT);
+    Set_LED_freq(0);
+    Serial.println("LED_setup");
+    xTaskCreatePinnedToCore(FlashLED, "FlashLED", 1024*10, NULL, 1, &FlashLED_h, 0);
+
+}
+
+float T_Buzzer=0.0f;
+void Set_Buzzer_freq(float freq){
+    if(freq==0){
+        digitalWrite(Buzzer_PIN, LOW);
+        T_Buzzer=0.0f;
+    }else{
+        T_Buzzer=(1.0f/freq);//in s
+    }   
+}
+void TurnOff_Buzzer(){
+    Set_Buzzer_freq(0);
+}
+FN_STATE FlashBuzzer_state=END;
+TaskHandle_t FlashBuzzer_h = NULL;
+void FlashBuzzer(void * param){
+    FlashBuzzer_state=RUNNING;
+    while(1){
+        if(T_Buzzer!=0.0f){
+            float T=T_Buzzer;
+            float T_half=T/2;
+            float t=(float)millis()/1000.0f;//in s
+            if(fmod(t,T)<T_half){
+                digitalWrite(Buzzer_PIN, HIGH);
+            }else{
+                digitalWrite(Buzzer_PIN, LOW);
+            }
+        }
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
+    FlashBuzzer_state=END;
+}
+void Buzzer_setup(){
+    pinMode(Buzzer_PIN, OUTPUT);
+    Set_Buzzer_freq(0);
+    Serial.println("Buzzer_setup");
+    xTaskCreatePinnedToCore(FlashBuzzer, "FlashBuzzer", 1024*10, NULL, 1, &FlashBuzzer_h, 0);
+
+}
+
 
 
 
 
 Servo servo;
-
+bool windowOpen=false;
 void OpenWindow(){
+    windowOpen=true;
     servo.write(servoOpen);
 }
 void CloseWindow(){
+    windowOpen=false;
     servo.write(servoClose);
 }
 void Servo_setup(){
@@ -126,6 +156,116 @@ void Servo_setup(){
 
 
 
+
+
+///Currently design request pattern
+FN_STATE POST_Record_state=END;
+unsigned int POST_Record_timestamp=0;
+String Status="SAFE";
+bool POST_Record_instant=false;
+TaskHandle_t POST_Record_h = NULL;
+void POST_Record(void* param){
+    POST_Record_state=RUNNING;
+    String url="https://ecourse.cpe.ku.ac.th/exceed02/add";
+    while(1){
+        if(POST_Record_instant==true || millis()-POST_Record_timestamp>=5*60*1000){
+        //if(POST_Record_instant==true || millis()-POST_Record_timestamp>=1000){
+            if(POST_Record_instant==true){
+                POST_Record_instant=false;
+            }
+            POST_Record_timestamp=millis();
+            String json;
+            HTTPClient http;
+            http.begin(url);
+            http.addHeader("Content-Type", "application/json");
+            DynamicJsonDocument doc(2048);
+            doc["gas_quantity"] = Gv;
+            doc["status"] = Status;
+            Serial.print("Send status : ");
+            Serial.println(Status);
+
+            serializeJson(doc, json);
+            int httpCode = http.POST(json);
+            if (httpCode/100==2) {
+                String payload = http.getString();
+                Serial.println(httpCode);
+                Serial.println(payload);
+            } else {
+                Serial.println(httpCode);
+                Serial.println("POST failed");
+            }
+        }
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
+    POST_Record_state=END;
+}
+
+
+TaskHandle_t GET_Window_Command_h = NULL;
+FN_STATE GET_Window_Command_state=END;
+unsigned int GET_Window_Command_timestamp=0;
+bool Window_Commandable=true;
+void GET_Window_Command(void* param){
+    GET_Window_Command_state=RUNNING;
+    String url="https://ecourse.cpe.ku.ac.th/exceed02/record/command";
+    while(1){
+        if(Window_Commandable==true){
+            if(millis()-GET_Window_Command_timestamp>=1000){
+                GET_Window_Command_timestamp=millis();
+                DynamicJsonDocument doc(2048);
+                HTTPClient http;
+                http.begin(url);
+                int httpCode = http.GET();
+                if(httpCode/100==2){
+                    String payload = http.getString();
+                    deserializeJson(doc, payload);
+                    bool isOpen=doc["isOpen"];
+                    if(isOpen){
+                        Serial.print("Window Open ");
+                        OpenWindow();
+                    }else{
+                        Serial.print("Window Close");
+                        CloseWindow();
+                    }
+                    Serial.println(isOpen);
+                }else{
+                    Serial.println("Error on GET_Window_Command");
+                    Serial.println(httpCode);
+                }
+            }
+        }
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
+    GET_Window_Command_state=END;
+}
+
+
+FN_STATE PUT_OpenWindow_state=END;
+bool PUT_OpenWindow_request=false;
+void PUT_OpenWindow(bool windowOpen){
+    PUT_OpenWindow_state=RUNNING;
+    while(1){
+        if(PUT_OpenWindow_request==true){
+        
+            String baseurl="https://ecourse.cpe.ku.ac.th/exceed02/update/";
+            String url=baseurl+(windowOpen?"true":"false");
+
+            HTTPClient http;
+            http.begin(url);
+            int httpCode = http.PUT("");
+            if(httpCode/100==2){
+                String payload = http.getString();
+                Serial.println(httpCode);
+                Serial.println(payload);
+            }else{
+                Serial.println("Error on PUT_OpenWindow");
+                Serial.println(httpCode);
+            }
+        }
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
+    PUT_OpenWindow_state=END;
+}
 void Internet_setup() {
     WiFi.begin(wifi_name, wifi_pass);
     Serial.print("Connecting to WiFi");
@@ -135,82 +275,10 @@ void Internet_setup() {
     }
     Serial.print("OK! IP=");
     Serial.println(WiFi.localIP());
+
+    xTaskCreatePinnedToCore(POST_Record, "POST_Record", 1024*10, NULL, 1, &POST_Record_h, 1);
+    xTaskCreatePinnedToCore(GET_Window_Command, "GET_Window_Command", 1024*10, NULL, 1, &GET_Window_Command_h, 1);
 }
-
-FN_STATE POST_Record_state=END;
-void POST_Record(String Status){
-    POST_Record_state=RUNNING;
-    String url="https://ecourse.cpe.ku.ac.th/exceed02/add";
-    String json;//body for post request
-    HTTPClient http;
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-
-    DynamicJsonDocument doc(2048);
-    doc["gas_quantity"] = Gv;
-    doc["time"] = NULL;
-    doc["status"] = Status;
-    doc["isCommand"]=false;
-
-
-    serializeJson(doc, json);
-    int httpCode = http.POST(json);
-    if (httpCode/100==2) {
-        String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println(payload);
-    } else {
-        Serial.println("Error on POST_Record");
-        Serial.println(httpCode);
-    }
-    POST_Record_state=END;
-
-}
-
-FN_STATE GET_Window_Command_state=END;
-void GET_Window_Command(void* param){
-    GET_Window_Command_state=RUNNING;
-    String url="https://ecourse.cpe.ku.ac.th/exceed02/record/command";
-    DynamicJsonDocument doc(2048);
-    HTTPClient http;
-    http.begin(url);
-    int httpCode = http.GET();
-    if(httpCode/100==2){
-        String payload = http.getString();
-        deserializeJson(doc, payload);
-        bool isCommand=doc["isCommand"];
-        if(isCommand){
-            servo.write(servoOpen);
-        }else{
-            servo.write(servoClose);
-        }
-    }else{
-        Serial.println("Error on GET_Window_Command");
-        Serial.println(httpCode);
-    }
-    GET_Window_Command_state=END;
-}
-
-
-FN_STATE PUT_OpenWindow_state=END;
-void PUT_OpenWindow(bool windowOpen){
-    PUT_OpenWindow_state=RUNNING;
-    String baseurl="https://ecourse.cpe.ku.ac.th/exceed02/update/";
-    String url=baseurl+(windowOpen?"true":"false");
-    HTTPClient http;
-    http.begin(url);
-    int httpCode = http.PUT("");
-    if (httpCode/100==2) {
-        String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println(payload);
-    } else {
-        Serial.println("Error on PUT_OpenWindow");
-        Serial.println(httpCode);
-    }
-    PUT_OpenWindow_state=END;
-}
-
 
 
 
