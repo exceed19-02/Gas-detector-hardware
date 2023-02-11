@@ -35,6 +35,7 @@ void on_Initial_body() {
 void on_SAFE_enter() {
     Serial.println("SAFE enter");
     Status = "SAFE";
+    POST_Record_instant = true;
     TurnOff_LED();
     TurnOff_Buzzer();
     Window_Commandable = true;
@@ -53,6 +54,7 @@ void on_SAFE_body() {
 void on_WARNING_enter() {
     Serial.println("WARNING enter");
     Status = "WARNING";
+    POST_Record_instant = true;
     Set_LED_freq(1);
     Set_Buzzer_freq(1);
     Window_Commandable = true;
@@ -71,6 +73,7 @@ void on_WARNING_body() {
 void on_DANGER_enter() {
     Serial.println("DANGER enter");
     Status = "DANGER";
+    POST_Record_instant = true;
     Set_LED_freq(4);
     Set_Buzzer_freq(4);
     Window_Commandable = false;
