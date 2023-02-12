@@ -27,18 +27,22 @@ enum FN_STATE{//essential for multitask
 
 #define G_WARNING 1500
 #define G_DANGER 2000
-#define G_SAFE 800
+#define G_SAFE 1000
 
 
 int Gv = 0;
 FN_STATE Gas_value_state=END;
 TaskHandle_t Gas_value_h = NULL;
+unsigned int Gas_value_timestamp=0;
 void Gas_value(void* param){
     Gas_value_state=RUNNING;
     while(1){
         Gv = analogRead(Gas_PIN);
-        Serial.print("Obtained Gas value");
-        Serial.println(Gv);
+        if(millis()-Gas_value_timestamp>1000){
+            Gas_value_timestamp=millis();
+            Serial.print("Gas value: ");
+            Serial.println(Gv);
+        }
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
     Gas_value_state=END;
@@ -151,9 +155,11 @@ void Servo_update(void* param){
         float T=_Tcos_servo;
         float t=(float)(millis()-servo_timestamp)/1000.0f;//in s
         int servoAngle=0;
-        if(t>servo_transitionTime)t=servo_transitionTime;
+        if(t>servo_transitionTime){t=servo_transitionTime;}
+        else{Serial.println("Servo update");}
         servoAngle=(-cos(t*PI/servo_transitionTime)+1)/2*(servoAngle_f-servoAngle_0)+servoAngle_0;
         servo.write(servoAngle);
+        servoAngle_i=servoAngle;
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
     Servo_update_state=END;
@@ -166,7 +172,7 @@ void OpenWindow(){
 }
 void CloseWindow(){
     windowOpen=false;
-    servoAngle_0=servoAngle_f;
+    servoAngle_0=servoAngle_i;
     servoAngle_f=servoClose;
     servo_timestamp=millis();
 }
