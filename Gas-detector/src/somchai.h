@@ -10,8 +10,8 @@
 #define Buzzer_PIN 5
 #define servoPin 18
 //open > close
-#define servoOpen 90
-#define servoClose 35
+#define servoOpen 110
+#define servoClose 30
 #define wifi_name "OPPO_KUY"
 #define wifi_pass "oppopass"
 
@@ -25,7 +25,7 @@ enum FN_STATE{//essential for multitask
 
 #define G_WARNING 1500
 #define G_DANGER 2000
-#define G_SAFE 800
+#define G_SAFE 1000
 
 
 //#define G_WARNING 1700
@@ -35,12 +35,16 @@ enum FN_STATE{//essential for multitask
 int Gv = 0;
 FN_STATE Gas_value_state=END;
 TaskHandle_t Gas_value_h = NULL;
+unsigned int Gas_value_timestamp=0;
 void Gas_value(void* param){
     Gas_value_state=RUNNING;
     while(1){
         Gv = analogRead(Gas_PIN);
-        Serial.print("Obtained Gas value");
-        Serial.println(Gv);
+        if(millis()-Gas_value_timestamp>1000){
+            Gas_value_timestamp=millis();
+            Serial.print("Obtained Gas value");
+            Serial.println(Gv);
+        }
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
     Gas_value_state=END;
@@ -246,6 +250,7 @@ void PUT_OpenWindow(bool windowOpen){
     PUT_OpenWindow_state=RUNNING;
     while(1){
         if(PUT_OpenWindow_request==true){
+            PUT_OpenWindow_request=false;
         
             String baseurl="https://ecourse.cpe.ku.ac.th/exceed02/update/";
             String url=baseurl+(windowOpen?"true":"false");

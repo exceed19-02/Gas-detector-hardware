@@ -8,7 +8,7 @@ void setup() {
     Internet_setup();
     Gas_setup();
     Servo_setup();
-    //POST_Record_instant=true;
+    POST_Record_instant=true;
     
 }
 
@@ -44,6 +44,7 @@ void loop(){
         Set_LED_freq(4);
         Set_Buzzer_freq(4);
         OpenWindow();
+        PUT_OpenWindow_request=true;
         Window_Commandable=false;
         if(Gv<G_SAFE){
             Status="SAFE";
