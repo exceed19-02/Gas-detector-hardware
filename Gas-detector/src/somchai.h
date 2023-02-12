@@ -10,10 +10,13 @@
 #define Buzzer_PIN 5
 #define servoPin 18
 //open > close
-#define servoOpen 90
+#define servoOpen 110
 #define servoClose 35
 #define wifi_name "OPPO_KUY"
 #define wifi_pass "oppopass"
+
+const char* wifi_names[]{"OPPO_KUY","OPPO_KUY_2G","OPPO_KUY_5G"};
+const char* wifi_passs[]{"oppopass","oppopass","oppopass"};
 
 
 
@@ -21,16 +24,11 @@ enum FN_STATE{//essential for multitask
     RUNNING,
     END
 };
-//DANGER forget to open window
 
 #define G_WARNING 1500
 #define G_DANGER 2000
 #define G_SAFE 800
 
-
-//#define G_WARNING 1700
-//#define G_DANGER 3000
-//#define G_SAFE 1000
 
 int Gv = 0;
 FN_STATE Gas_value_state=END;
@@ -93,7 +91,6 @@ void LED_setup(){
     Set_LED_freq(0);
     Serial.println("LED_setup");
     xTaskCreatePinnedToCore(FlashLED, "FlashLED", 1024*10, NULL, 1, &FlashLED_h, 0);
-
 }
 
 float T_Buzzer=0.0f;
@@ -132,7 +129,6 @@ void Buzzer_setup(){
     Set_Buzzer_freq(0);
     Serial.println("Buzzer_setup");
     xTaskCreatePinnedToCore(FlashBuzzer, "FlashBuzzer", 1024*10, NULL, 1, &FlashBuzzer_h, 0);
-
 }
 
 
@@ -141,18 +137,43 @@ void Buzzer_setup(){
 
 Servo servo;
 bool windowOpen=false;
+int servoAngle_0=0;
+int servoAngle_i=0;
+int servoAngle_f=0;
+unsigned int servo_timestamp=0;
+const float servo_transitionTime=0.2f;//in s
+float _Tcos_servo=2*servo_transitionTime;
+FN_STATE Servo_update_state=END;
+TaskHandle_t Servo_update_h = NULL;
+void Servo_update(void* param){
+    Servo_update_state=RUNNING;
+    while(1){
+        float T=_Tcos_servo;
+        float t=(float)(millis()-servo_timestamp)/1000.0f;//in s
+        int servoAngle=0;
+        if(t>servo_transitionTime)t=servo_transitionTime;
+        servoAngle=(-cos(t*PI/servo_transitionTime)+1)/2*(servoAngle_f-servoAngle_0)+servoAngle_0;
+        servo.write(servoAngle);
+        vTaskDelay(10/portTICK_PERIOD_MS);
+    }
+    Servo_update_state=END;
+}
 void OpenWindow(){
     windowOpen=true;
-    servo.write(servoOpen);
+    servoAngle_0=servoAngle_i;
+    servoAngle_f=servoOpen;
+    servo_timestamp=millis();
 }
 void CloseWindow(){
     windowOpen=false;
-    servo.write(servoClose);
+    servoAngle_0=servoAngle_f;
+    servoAngle_f=servoClose;
+    servo_timestamp=millis();
 }
 void Servo_setup(){
-    servo.attach(servoPin);
-    CloseWindow();
+    servo.attach(servoPin); 
 }
+
 
 
 
